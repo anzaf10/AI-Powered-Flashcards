@@ -1,0 +1,167 @@
+import spacy
+import json
+import random
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+
+nlp = spacy.load("en_core_web_sm")
+
+
+def extract_key_terms(text):
+    doc = nlp(text)
+    terms = set()
+
+    for ent in doc.ents:
+        if len(ent.text) > 2:
+            terms.add(ent.text.strip())
+
+    
+    for chunk in doc.noun_chunks:
+        if len(chunk.text.split()) <= 3:
+            terms.add(chunk.text.strip())
+
+    return list(terms)
+
+
+def classify_difficulty(term):
+    length = len(term.split())
+    if length == 1:
+        return "Easy"
+    elif length == 2:
+        return "Medium"
+    else:
+        return "Hard"
+
+
+def generate_flashcards(text):
+    doc = nlp(text)
+    flashcards = []
+
+    for sent in doc.sents:
+        sentence = sent.text.strip()
+        terms = extract_key_terms(sentence)
+
+        for term in terms:
+            if term.lower() in sentence.lower():
+
+                difficulty = classify_difficulty(term)
+
+               
+                question1 = sentence.replace(term, "_____")
+
+               
+                question2 = f"What is '{term}'?"
+
+                flashcards.append({
+                    "type": "fill_blank",
+                    "question": question1,
+                    "answer": term,
+                    "difficulty": difficulty
+                })
+
+                flashcards.append({
+                    "type": "definition",
+                    "question": question2,
+                    "answer": sentence,
+                    "difficulty": difficulty
+                })
+
+    return flashcards
+
+
+def save_flashcards(flashcards, filename="flashcards.json"):
+    with open(filename, "w") as f:
+        json.dump(flashcards, f, indent=4)
+
+
+def load_flashcards(filename="flashcards.json"):
+    with open(filename, "r") as f:
+        return json.load(f)
+
+
+def quiz_user(flashcards):
+    score = 0
+    random.shuffle(flashcards)
+
+    for card in flashcards:
+        print("\nQ:", card["question"])
+        user_answer = input("Your Answer: ")
+
+        if user_answer.lower() in card["answer"].lower():
+            print("Correct!")
+            score += 1
+        else:
+            print("Wrong!")
+            print("Correct Answer:", card["answer"])
+
+    print(f"\nFinal Score: {score}/{len(flashcards)}")
+
+
+def export_to_pdf(flashcards, filename="flashcards.pdf"):
+    doc = SimpleDocTemplate(filename, pagesize=letter)
+    styles = getSampleStyleSheet()
+    content = []
+
+    for i, card in enumerate(flashcards, 1):
+        q = Paragraph(f"<b>Q{i}:</b> {card['question']}", styles["Normal"])
+        a = Paragraph(f"<b>A:</b> {card['answer']} ({card['difficulty']})", styles["Normal"])
+
+        content.append(q)
+        content.append(a)
+
+    doc.build(content)
+
+
+def main():
+    text = """
+    Artificial Intelligence is the simulation of human intelligence by machines.
+    Machine Learning is a subset of AI that enables systems to learn from data.
+    Natural Language Processing helps computers understand human language.
+    Deep Learning uses neural networks for advanced pattern recognition.
+    """
+
+    flashcards = generate_flashcards(text)
+
+    while True:
+        print("\n--- AI FLASHCARD SYSTEM ---")
+        print("1. Show Flashcards")
+        print("2. Take Quiz")
+        print("3. Save Flashcards")
+        print("4. Load Flashcards")
+        print("5. Export to PDF")
+        print("6. Exit")
+
+        choice = input("Enter choice: ")
+
+        if choice == "1":
+            for i, card in enumerate(flashcards, 1):
+                print(f"\nFlashcard {i}")
+                print("Q:", card["question"])
+                print("A:", card["answer"])
+                print("Difficulty:", card["difficulty"])
+
+        elif choice == "2":
+            quiz_user(flashcards)
+
+        elif choice == "3":
+            save_flashcards(flashcards)
+            print("Saved successfully!")
+
+        elif choice == "4":
+            flashcards = load_flashcards()
+            print("Loaded successfully!")
+
+        elif choice == "5":
+            export_to_pdf(flashcards)
+            print("PDF exported!")
+
+        elif choice == "6":
+            break
+
+        else:
+            print("Invalid choice!")
+
+
+if __name__ == "__main__":
+    main()
